@@ -18,12 +18,13 @@ const MY_MANUFACTURER_ID: u16 = 0xf00d;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), bluer::Error> {
+  env_logger::init();
+
   let local_set = LocalSet::new();
-  local_set.run_until(do_main()).await
+  local_set.run_until(run_server()).await
 }
 
-async fn do_main() -> Result<(), bluer::Error> {
-  env_logger::init();
+async fn run_server() -> Result<(), bluer::Error> {
   let session = bluer::Session::new().await?;
   let adapter = session.default_adapter().await?;
   adapter.set_powered(true).await?;
@@ -279,6 +280,7 @@ impl<W> WritersManager<W> {
 }
 
 mod bluer_adapter {
+  use ble_peripheral::mtu::Mtu;
   use ble_peripheral::peripheral::Peripheral;
   use ble_peripheral::prelude::*;
   use bluer::adv::{AdvertisementHandle, Type};
@@ -354,7 +356,6 @@ mod bluer_adapter {
       let tx_for_start = tx.clone();
       let app_holder = ApplicationFactory::convert(services, tx.clone())?;
       tokio::spawn(async move {
-        println!("{:?}", app_holder.app);
         let r = adapter_for_start
           .serve_gatt_application(app_holder.app)
           .await;
@@ -596,6 +597,7 @@ mod bluer_adapter {
           let (responder_tx, responder_rx) = oneshot::channel();
           tx.send(Event::OnHandleRead {
             conn: BluerConnection::new(T::address(&req)),
+            mtu: T::mtu(&req),
             handle,
             responder: BluerResponder {
               tx: Some(responder_tx),
@@ -630,6 +632,7 @@ mod bluer_adapter {
           // TODO: How is the responder supposed to work for characteristic writes!?!?
           tx.send(Event::OnHandleWrite {
             conn: BluerConnection::new(T::address(&req)),
+            mtu: T::mtu(&req),
             handle,
             responder: None,
             action: WriteAction::Normal,
@@ -692,6 +695,8 @@ mod bluer_adapter {
     type Inner;
 
     fn address(inner: &Self::Inner) -> &Address;
+
+    fn mtu(inner: &Self::Inner) -> Option<u16>;
   }
 
   trait HasWriteFields {
@@ -707,6 +712,10 @@ mod bluer_adapter {
     fn address(inner: &Self::Inner) -> &Address {
       &inner.device_address
     }
+
+    fn mtu(_inner: &Self::Inner) -> Option<u16> {
+      None
+    }
   }
 
   struct DescriptorWriteRequestType;
@@ -715,6 +724,10 @@ mod bluer_adapter {
 
     fn address(inner: &Self::Inner) -> &Address {
       &inner.device_address
+    }
+
+    fn mtu(_inner: &Self::Inner) -> Option<u16> {
+      None
     }
   }
 
@@ -733,6 +746,10 @@ mod bluer_adapter {
     fn address(inner: &Self::Inner) -> &Address {
       &inner.device_address
     }
+
+    fn mtu(inner: &Self::Inner) -> Option<u16> {
+      Some(inner.mtu)
+    }
   }
 
   struct CharacteristicWriteRequestType;
@@ -741,6 +758,10 @@ mod bluer_adapter {
 
     fn address(inner: &Self::Inner) -> &Address {
       &inner.device_address
+    }
+
+    fn mtu(inner: &Self::Inner) -> Option<u16> {
+      Some(inner.mtu)
     }
   }
 
@@ -810,6 +831,10 @@ mod bluer_adapter {
   ) {
     let mut handles = KeepAliveHandles::default();
 
+    let mut mtu_change_detector = MtuChangeDetector {
+      negotiated_mtu: None,
+    };
+
     while let Some(event) = rx.recv().await {
       match event {
         Event::OnStartResult(r) => {
@@ -859,9 +884,11 @@ mod bluer_adapter {
         }
         Event::OnHandleRead {
           conn,
+          mtu,
           handle,
           mut responder,
         } => {
+          mtu_change_detector.maybe_emit_mtu_changed(&conn, mtu, &mut callback);
           callback.on_event(GattServerEvent::ReadRequest {
             connection: &conn,
             handle,
@@ -870,12 +897,14 @@ mod bluer_adapter {
         }
         Event::OnHandleWrite {
           conn,
+          mtu,
           handle,
           mut responder,
           action,
           offset,
           value,
         } => {
+          mtu_change_detector.maybe_emit_mtu_changed(&conn, mtu, &mut callback);
           callback.on_event(GattServerEvent::WriteRequest {
             connection: &conn,
             handle,
@@ -903,6 +932,29 @@ mod bluer_adapter {
           });
         }
       };
+    }
+  }
+
+  struct MtuChangeDetector {
+    negotiated_mtu: Option<u16>,
+  }
+
+  impl MtuChangeDetector {
+    fn maybe_emit_mtu_changed(
+      &mut self,
+      conn: &BluerConnection,
+      received_mtu: Option<u16>,
+      callback: &mut impl GattServerCallback<BluerPeripheral>,
+    ) {
+      if received_mtu != self.negotiated_mtu {
+        if let Some(mtu) = received_mtu {
+          self.negotiated_mtu = Some(mtu);
+          callback.on_event(GattServerEvent::MtuChanged {
+            connection: conn,
+            mtu: Mtu::new(mtu),
+          });
+        }
+      }
     }
   }
 
@@ -1054,11 +1106,13 @@ mod bluer_adapter {
     OnAdvStartResult(Result<AdvertisementHandle, bluer::Error>),
     OnHandleRead {
       conn: BluerConnection,
+      mtu: Option<u16>,
       handle: AttributeHandle,
       responder: BluerResponder,
     },
     OnHandleWrite {
       conn: BluerConnection,
+      mtu: Option<u16>,
       handle: AttributeHandle,
       responder: Option<BluerResponder>,
       action: WriteAction,
