@@ -1,6 +1,6 @@
-use enumset::EnumSet;
 use crate::descriptors::uuid::UUID;
 use crate::prelude::GattCharacteristicPermission;
+use enumset::EnumSet;
 
 #[derive(Debug, PartialEq)]
 pub struct GattDescriptor {

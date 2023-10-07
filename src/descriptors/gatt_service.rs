@@ -1,6 +1,6 @@
-use alloc::vec::Vec;
 use crate::descriptors::gatt_characteristic::GattCharacteristic;
 use crate::descriptors::uuid::UUID;
+use alloc::vec::Vec;
 
 #[derive(Debug, PartialEq)]
 pub struct GattService {

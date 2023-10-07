@@ -1,16 +1,16 @@
-use std::collections::{BTreeMap,};
-use std::collections::btree_map::Entry;
-use std::fmt::Debug;
+use crate::bluer_adapter::BluerPeripheral;
+use ble_peripheral::gatt_server_cb::{GattServerCallback, GattServerEvent};
+use ble_peripheral::peripheral::Peripheral;
+use ble_peripheral::prelude::*;
 use enumset::enum_set;
 use log::{debug, error, info, trace, warn};
+use std::collections::btree_map::Entry;
+use std::collections::BTreeMap;
+use std::fmt::Debug;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::select;
 use tokio::sync::oneshot;
 use tokio::task::LocalSet;
-use ble_peripheral::gatt_server_cb::{GattServerCallback, GattServerEvent};
-use ble_peripheral::peripheral::Peripheral;
-use ble_peripheral::prelude::*;
-use crate::bluer_adapter::{BluerPeripheral};
 
 const ECHO_SERVICE_UUID: UUID = UUID::Long(0xFEEDC0DE);
 const ECHO_CHARACTERISTIC_UUID: UUID = UUID::Long(0xF00DC0DE00001);
@@ -34,21 +34,20 @@ async fn do_main() -> Result<(), bluer::Error> {
 
 async fn run_server_from_trait<P>(mut peripheral: P) -> Result<(), P::SystemError>
 where
-    P: Peripheral + Debug + 'static,
+  P: Peripheral + Debug + 'static,
 {
   peripheral.set_name("gatt_server")?;
 
-
   let service = GattService {
     uuid: ECHO_SERVICE_UUID,
-    characteristics: vec![
-      GattCharacteristic {
-        uuid: ECHO_CHARACTERISTIC_UUID,
-        properties: enum_set!(GattCharacteristicProperty::Read | GattCharacteristicProperty::Write),
-        permissions: enum_set!(GattCharacteristicPermission::Read | GattCharacteristicPermission::Write),
-        ..Default::default()
-      }
-    ],
+    characteristics: vec![GattCharacteristic {
+      uuid: ECHO_CHARACTERISTIC_UUID,
+      properties: enum_set!(GattCharacteristicProperty::Read | GattCharacteristicProperty::Write),
+      permissions: enum_set!(
+        GattCharacteristicPermission::Read | GattCharacteristicPermission::Write
+      ),
+      ..Default::default()
+    }],
     ..Default::default()
   };
 
@@ -127,7 +126,10 @@ impl<P: Peripheral + Debug> GattServerCallback<P> for EchoServer<P> {
         error!("Server shutdown: {error:?}");
         let _ = self.shutdown_tx.take().map(|tx| tx.send(()));
       }
-      GattServerEvent::ServerStarted { advertiser, handle_mapping } => {
+      GattServerEvent::ServerStarted {
+        advertiser,
+        handle_mapping,
+      } => {
         info!("Server started!");
 
         for (uuid, handle) in handle_mapping {
@@ -139,7 +141,9 @@ impl<P: Peripheral + Debug> GattServerCallback<P> for EchoServer<P> {
         self.advertiser = Some(advertiser);
         self.start_advertising();
       }
-      GattServerEvent::AdvertisingStarted { remaining_connections } => {
+      GattServerEvent::AdvertisingStarted {
+        remaining_connections,
+      } => {
         info!("Advertising started");
         debug!("remaining_connections={remaining_connections:?}");
         self.is_advertising = true;
@@ -164,7 +168,11 @@ impl<P: Peripheral + Debug> GattServerCallback<P> for EchoServer<P> {
       GattServerEvent::MtuChanged { connection, mtu } => {
         info!("MTU changed on {connection:?}: mtu={mtu}");
       }
-      GattServerEvent::ReadRequest { connection, handle, responder } => {
+      GattServerEvent::ReadRequest {
+        connection,
+        handle,
+        responder,
+      } => {
         debug!("Got read request on {connection:?}: handle={handle}");
         if handle == self.echo_handle.unwrap() {
           if let Err(e) = responder.respond(Ok(Response::complete(&self.last_value))) {
@@ -174,7 +182,14 @@ impl<P: Peripheral + Debug> GattServerCallback<P> for EchoServer<P> {
           warn!("Unknown handle={handle}");
         }
       }
-      GattServerEvent::WriteRequest { connection, handle, responder, action, offset, value } => {
+      GattServerEvent::WriteRequest {
+        connection,
+        handle,
+        responder,
+        action,
+        offset,
+        value,
+      } => {
         debug!("Got write request on {connection:?}: handle={handle}, action={action:?}");
         if handle == self.echo_handle.unwrap() {
           if responder.is_some() {
@@ -188,7 +203,12 @@ impl<P: Peripheral + Debug> GattServerCallback<P> for EchoServer<P> {
           warn!("Unknown handle={handle}");
         }
       }
-      GattServerEvent::ExecuteWrite { connection, handle, responder, action } => {
+      GattServerEvent::ExecuteWrite {
+        connection,
+        handle,
+        responder,
+        action,
+      } => {
         debug!("Got execute write on {connection:?}: handle={handle}, action={action:?}");
         if handle == self.echo_handle.unwrap() {
           if let Err(e) = responder.respond(Err(AttError::WriteNotPermitted)) {
@@ -196,10 +216,16 @@ impl<P: Peripheral + Debug> GattServerCallback<P> for EchoServer<P> {
           }
         }
       }
-      GattServerEvent::Subscribe { connection, handle, writer } => {
+      GattServerEvent::Subscribe {
+        connection,
+        handle,
+        writer,
+      } => {
         debug!("Got subscribe on {connection:?}: handle={handle}");
         if handle == self.echo_handle.unwrap() {
-          self.writers.register(connection.peer_address().clone(), handle, writer.to_owned());
+          self
+            .writers
+            .register(connection.peer_address().clone(), handle, writer.to_owned());
         }
       }
       GattServerEvent::Unsubscribe { connection, handle } => {
@@ -219,17 +245,24 @@ struct WritersManager<W> {
 
 impl<W> WritersManager<W> {
   pub fn new() -> Self {
-    Self { data: BTreeMap::new() }
+    Self {
+      data: BTreeMap::new(),
+    }
   }
 
-  pub fn register(&mut self, address: BluetoothAddress, handle: AttributeHandle, writer: W) -> bool {
+  pub fn register(
+    &mut self,
+    address: BluetoothAddress,
+    handle: AttributeHandle,
+    writer: W,
+  ) -> bool {
     let entries = self.data.entry(handle).or_default();
 
     match entries.entry(address) {
       Entry::Vacant(e) => {
         e.insert(writer);
         true
-      },
+      }
       Entry::Occupied(_) => false,
     }
   }
@@ -240,28 +273,32 @@ impl<W> WritersManager<W> {
     }
   }
 
-  pub fn lookup(&mut self, handle: &AttributeHandle) -> Option<impl Iterator<Item=&mut W>> {
-    self.data.get_mut(handle)
-        .map(|e| e.values_mut())
+  pub fn lookup(&mut self, handle: &AttributeHandle) -> Option<impl Iterator<Item = &mut W>> {
+    self.data.get_mut(handle).map(|e| e.values_mut())
   }
 }
 
 mod bluer_adapter {
-  use std::collections::{BTreeSet};
+  use ble_peripheral::peripheral::Peripheral;
+  use ble_peripheral::prelude::*;
+  use bluer::adv::{AdvertisementHandle, Type};
+  use bluer::gatt::local::{
+    Application, ApplicationHandle, Characteristic, CharacteristicNotify, CharacteristicNotifyFun,
+    CharacteristicNotifyMethod, CharacteristicRead, CharacteristicReadRequest, CharacteristicWrite,
+    CharacteristicWriteMethod, CharacteristicWriteRequest, Descriptor, DescriptorRead,
+    DescriptorReadRequest, DescriptorWrite, DescriptorWriteRequest, ReqError, ReqResult, Service,
+  };
+  use bluer::{Adapter, Address, Uuid};
+  use futures_util::FutureExt;
+  use log::{debug, warn};
+  use std::collections::BTreeSet;
   use std::fmt::{Debug, Formatter};
   use std::future::Future;
   use std::num::NonZeroU16;
   use std::ops::Deref;
   use std::pin::Pin;
   use std::sync::Arc;
-  use bluer::{Adapter, Address, Uuid};
-  use bluer::adv::{AdvertisementHandle, Type};
-  use bluer::gatt::local::{Application, ApplicationHandle, Characteristic, CharacteristicNotify, CharacteristicNotifyFun, CharacteristicNotifyMethod, CharacteristicRead, CharacteristicReadRequest, CharacteristicWrite, CharacteristicWriteMethod, CharacteristicWriteRequest, Descriptor, DescriptorRead, DescriptorReadRequest, DescriptorWrite, DescriptorWriteRequest, ReqError, ReqResult, Service};
-  use futures_util::FutureExt;
-  use log::{debug, warn};
   use tokio::sync::{mpsc, oneshot};
-  use ble_peripheral::peripheral::Peripheral;
-  use ble_peripheral::prelude::*;
 
   pub struct BluerPeripheral {
     adapter: Adapter,
@@ -280,8 +317,8 @@ mod bluer_adapter {
   impl Debug for BluerPeripheral {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
       f.debug_struct("BluerPeripheral")
-          .field("ident", &self.ident)
-          .finish_non_exhaustive()
+        .field("ident", &self.ident)
+        .finish_non_exhaustive()
     }
   }
 
@@ -302,9 +339,9 @@ mod bluer_adapter {
     }
 
     fn configure_gatt_server(
-        self,
-        services: &[GattService],
-        callback: impl GattServerCallback<Self> + 'static,
+      self,
+      services: &[GattService],
+      callback: impl GattServerCallback<Self> + 'static,
     ) -> Result<Self::Handle, Self::SystemError> {
       let (tx, rx) = mpsc::unbounded_channel();
       let advertiser = BluerAdvertiser {
@@ -318,9 +355,11 @@ mod bluer_adapter {
       let app_holder = ApplicationFactory::convert(services, tx.clone())?;
       tokio::spawn(async move {
         println!("{:?}", app_holder.app);
-        let r = adapter_for_start.serve_gatt_application(app_holder.app).await;
+        let r = adapter_for_start
+          .serve_gatt_application(app_holder.app)
+          .await;
         let _ = tx_for_start.send(Event::OnStartResult(
-          r.map(|handle| (handle, advertiser, app_holder.handle_mapping))
+          r.map(|handle| (handle, advertiser, app_holder.handle_mapping)),
         ));
       });
 
@@ -346,7 +385,10 @@ mod bluer_adapter {
   }
 
   impl ApplicationFactory {
-    pub fn convert(services: &[GattService], tx: mpsc::UnboundedSender<Event>) -> Result<ApplicationHolder, bluer::Error> {
+    pub fn convert(
+      services: &[GattService],
+      tx: mpsc::UnboundedSender<Event>,
+    ) -> Result<ApplicationHolder, bluer::Error> {
       let mut me = ApplicationFactory {
         tx,
         app: Default::default(),
@@ -385,7 +427,10 @@ mod bluer_adapter {
       })
     }
 
-    fn new_characteristic_base(&mut self, spec: &GattCharacteristic) -> Result<Characteristic, bluer::Error> {
+    fn new_characteristic_base(
+      &mut self,
+      spec: &GattCharacteristic,
+    ) -> Result<Characteristic, bluer::Error> {
       let handle_type = self.handle_allocator.next(spec.uuid);
 
       let mut read_op = None;
@@ -394,8 +439,7 @@ mod bluer_adapter {
 
       for prop in spec.properties {
         match prop {
-          GattCharacteristicProperty::Indicate |
-              GattCharacteristicProperty::Notify => {
+          GattCharacteristicProperty::Indicate | GattCharacteristicProperty::Notify => {
             notify_op.get_or_insert_with(|| CharacteristicNotify {
               method: CharacteristicNotifyMethod::Fun(self.new_notify_handler(handle_type)),
               ..Default::default()
@@ -407,12 +451,12 @@ mod bluer_adapter {
               ..Default::default()
             });
           }
-          GattCharacteristicProperty::Write |
-              GattCharacteristicProperty::WriteSigned |
-              GattCharacteristicProperty::WriteNoResponse => {
+          GattCharacteristicProperty::Write
+          | GattCharacteristicProperty::WriteSigned
+          | GattCharacteristicProperty::WriteNoResponse => {
             write_op.get_or_insert_with(|| CharacteristicWrite {
               method: CharacteristicWriteMethod::Fun(
-                  self.new_write_handler::<CharacteristicWriteRequestType>(handle_type)
+                self.new_write_handler::<CharacteristicWriteRequestType>(handle_type),
               ),
               ..Default::default()
             });
@@ -430,7 +474,9 @@ mod bluer_adapter {
             notify_op.as_mut().map(|o| o.notify = true);
           }
           GattCharacteristicProperty::WriteSigned => {
-            write_op.as_mut().map(|o| o.authenticated_signed_writes = true);
+            write_op
+              .as_mut()
+              .map(|o| o.authenticated_signed_writes = true);
           }
           GattCharacteristicProperty::WriteNoResponse => {
             write_op.as_mut().map(|o| o.write_without_response = true);
@@ -453,16 +499,24 @@ mod bluer_adapter {
           GattCharacteristicPermission::WriteEncrypted => {
             write_op.as_mut().map(|o| o.encrypt_write = true);
           }
-          GattCharacteristicPermission::WriteEncryptedMitm => Err(generic_err("write encrypted mitm not supported"))?,
-          GattCharacteristicPermission::WriteSigned => Err(generic_err("write signed not supported"))?,
-          GattCharacteristicPermission::WriteSignedMitm => Err(generic_err("write signed mitm not supported"))?,
+          GattCharacteristicPermission::WriteEncryptedMitm => {
+            Err(generic_err("write encrypted mitm not supported"))?
+          }
+          GattCharacteristicPermission::WriteSigned => {
+            Err(generic_err("write signed not supported"))?
+          }
+          GattCharacteristicPermission::WriteSignedMitm => {
+            Err(generic_err("write signed mitm not supported"))?
+          }
         }
       }
 
       Ok(Characteristic {
         uuid: convert_uuid(spec.uuid),
-        broadcast: spec.properties.contains(GattCharacteristicProperty::Broadcast),
-        authorize: false, // TODO,
+        broadcast: spec
+          .properties
+          .contains(GattCharacteristicProperty::Broadcast),
+        authorize: false,            // TODO,
         writable_auxiliaries: false, // TODO,
         read: read_op,
         write: write_op,
@@ -479,18 +533,17 @@ mod bluer_adapter {
 
       for perm in spec.permissions {
         match perm {
-          GattDescriptorPermission::Read |
-              GattDescriptorPermission::ReadEncrypted => {
+          GattDescriptorPermission::Read | GattDescriptorPermission::ReadEncrypted => {
             read_op.get_or_insert_with(|| DescriptorRead {
               fun: self.new_read_handler::<DescriptorReadRequestType>(handle_type),
               ..Default::default()
             });
           }
-          GattDescriptorPermission::Write |
-              GattDescriptorPermission::WriteEncrypted |
-              GattDescriptorPermission::WriteEncryptedMitm |
-              GattDescriptorPermission::WriteSigned |
-              GattDescriptorPermission::WriteSignedMitm => {
+          GattDescriptorPermission::Write
+          | GattDescriptorPermission::WriteEncrypted
+          | GattDescriptorPermission::WriteEncryptedMitm
+          | GattDescriptorPermission::WriteSigned
+          | GattDescriptorPermission::WriteSignedMitm => {
             write_op.get_or_insert_with(|| DescriptorWrite {
               fun: self.new_write_handler::<DescriptorWriteRequestType>(handle_type),
               ..Default::default()
@@ -503,19 +556,23 @@ mod bluer_adapter {
         match perm {
           GattDescriptorPermission::Read => {
             read_op.as_mut().map(|o| o.read = true);
-          },
+          }
           GattDescriptorPermission::ReadEncrypted => {
             read_op.as_mut().map(|o| o.encrypt_read = true);
-          },
+          }
           GattDescriptorPermission::Write => {
             write_op.as_mut().map(|o| o.write = true);
-          },
+          }
           GattDescriptorPermission::WriteEncrypted => {
             write_op.as_mut().map(|o| o.encrypt_write = true);
-          },
-          GattDescriptorPermission::WriteEncryptedMitm => Err(generic_err("write encrypted mitm not supported"))?,
+          }
+          GattDescriptorPermission::WriteEncryptedMitm => {
+            Err(generic_err("write encrypted mitm not supported"))?
+          }
           GattDescriptorPermission::WriteSigned => Err(generic_err("write signed not supported"))?,
-          GattDescriptorPermission::WriteSignedMitm => Err(generic_err("write signed mitm not supported"))?,
+          GattDescriptorPermission::WriteSignedMitm => {
+            Err(generic_err("write signed mitm not supported"))?
+          }
         }
       }
 
@@ -529,8 +586,8 @@ mod bluer_adapter {
 
     fn new_read_handler<T>(&self, handle: AttributeHandle) -> ReadRequest<T::Inner>
     where
-        T: HasConnectionFields,
-        T::Inner: Send + 'static,
+      T: HasConnectionFields,
+      T::Inner: Send + 'static,
     {
       let local_tx = self.tx.clone();
       Box::new(move |req| {
@@ -540,24 +597,31 @@ mod bluer_adapter {
           tx.send(Event::OnHandleRead {
             conn: BluerConnection::new(T::address(&req)),
             handle,
-            responder: BluerResponder { tx: Some(responder_tx) },
+            responder: BluerResponder {
+              tx: Some(responder_tx),
+            },
           })
-              .map_err(|_| ReqError::Failed)?;
-          let response = responder_rx.await
-              .map_err(|_| ReqError::Failed)?
-              .map_err(|e| att_to_req_error(e))?;
+          .map_err(|_| ReqError::Failed)?;
+          let response = responder_rx
+            .await
+            .map_err(|_| ReqError::Failed)?
+            .map_err(|e| att_to_req_error(e))?;
           if response.0 > 0 {
             return Err(ReqError::InvalidOffset);
           }
           Ok(response.1)
-        }.boxed()
+        }
+        .boxed()
       })
     }
 
-    fn new_write_handler<T>(&self, handle: AttributeHandle) -> WriteRequest<<T as HasWriteFields>::Inner>
+    fn new_write_handler<T>(
+      &self,
+      handle: AttributeHandle,
+    ) -> WriteRequest<<T as HasWriteFields>::Inner>
     where
-        T: HasConnectionFields + HasWriteFields<Inner=<T as HasConnectionFields>::Inner>,
-        <T as HasWriteFields>::Inner: Send + 'static,
+      T: HasConnectionFields + HasWriteFields<Inner = <T as HasConnectionFields>::Inner>,
+      <T as HasWriteFields>::Inner: Send + 'static,
     {
       let local_tx = self.tx.clone();
       Box::new(move |value, req| {
@@ -572,9 +636,10 @@ mod bluer_adapter {
             offset: T::offset(&req),
             value,
           })
-              .map_err(|_| ReqError::Failed)?;
+          .map_err(|_| ReqError::Failed)?;
           Ok(())
-        }.boxed()
+        }
+        .boxed()
       })
     }
 
@@ -611,18 +676,17 @@ mod bluer_adapter {
               }
             }
           });
-        }.boxed()
+        }
+        .boxed()
       })
     }
   }
 
-  type ReadRequest<R> = Box<
-    dyn (Fn(R) -> Pin<Box<dyn Future<Output = ReqResult<Vec<u8>>> + Send>>) + Send + Sync,
-  >;
+  type ReadRequest<R> =
+    Box<dyn (Fn(R) -> Pin<Box<dyn Future<Output = ReqResult<Vec<u8>>> + Send>>) + Send + Sync>;
 
-  type WriteRequest<R> = Box<
-    dyn Fn(Vec<u8>, R) -> Pin<Box<dyn Future<Output = ReqResult<()>> + Send>> + Send + Sync,
-  >;
+  type WriteRequest<R> =
+    Box<dyn Fn(Vec<u8>, R) -> Pin<Box<dyn Future<Output = ReqResult<()>> + Send>> + Send + Sync>;
 
   trait HasConnectionFields {
     type Inner;
@@ -732,14 +796,17 @@ mod bluer_adapter {
   }
 
   fn generic_err(debug_message: &str) -> bluer::Error {
-    bluer::Error::from(std::io::Error::new(std::io::ErrorKind::Other, debug_message))
+    bluer::Error::from(std::io::Error::new(
+      std::io::ErrorKind::Other,
+      debug_message,
+    ))
   }
 
   async fn run_event_loop(
-      adapter: Adapter,
-      mut rx: mpsc::UnboundedReceiver<Event>,
-      self_tx: mpsc::UnboundedSender<Event>,
-      mut callback: impl GattServerCallback<BluerPeripheral>,
+    adapter: Adapter,
+    mut rx: mpsc::UnboundedReceiver<Event>,
+    self_tx: mpsc::UnboundedSender<Event>,
+    mut callback: impl GattServerCallback<BluerPeripheral>,
   ) {
     let mut handles = KeepAliveHandles::default();
 
@@ -754,14 +821,10 @@ mod bluer_adapter {
                 handle_mapping,
               }
             }
-            Err(error) => {
-              GattServerEvent::ServerShutdown {
-                error,
-              }
-            }
+            Err(error) => GattServerEvent::ServerShutdown { error },
           };
           callback.on_event(event);
-        },
+        }
         Event::OnHandleDrop => {
           debug!("Advertiser dropped, shutting down!");
           return;
@@ -773,7 +836,7 @@ mod bluer_adapter {
             let r = adapter_clone.advertise(adv).await;
             let _ = self_tx.send(Event::OnAdvStartResult(r));
           });
-        },
+        }
         Event::OnAdvStartResult(r) => {
           let event = match r {
             Ok(handle) => {
@@ -781,12 +844,10 @@ mod bluer_adapter {
               GattServerEvent::AdvertisingStarted {
                 remaining_connections: None,
               }
-            },
-            Err(error) => {
-              GattServerEvent::AdvertisingStartFail {
-                reason: AdvStartFailedReason::SystemError(error),
-              }
             }
+            Err(error) => GattServerEvent::AdvertisingStartFail {
+              reason: AdvStartFailedReason::SystemError(error),
+            },
           };
           callback.on_event(event);
         }
@@ -795,15 +856,26 @@ mod bluer_adapter {
           callback.on_event(GattServerEvent::AdvertisingStopped {
             reason: AdvStopReason::Requested,
           });
-        },
-        Event::OnHandleRead { conn, handle, mut responder } => {
+        }
+        Event::OnHandleRead {
+          conn,
+          handle,
+          mut responder,
+        } => {
           callback.on_event(GattServerEvent::ReadRequest {
             connection: &conn,
             handle,
             responder: &mut responder,
           });
         }
-        Event::OnHandleWrite { conn, handle, mut responder, action, offset, value } => {
+        Event::OnHandleWrite {
+          conn,
+          handle,
+          mut responder,
+          action,
+          offset,
+          value,
+        } => {
           callback.on_event(GattServerEvent::WriteRequest {
             connection: &conn,
             handle,
@@ -813,7 +885,11 @@ mod bluer_adapter {
             value: &value,
           });
         }
-        Event::OnSubscribe { conn, handle, mut writer } => {
+        Event::OnSubscribe {
+          conn,
+          handle,
+          mut writer,
+        } => {
           callback.on_event(GattServerEvent::Subscribe {
             connection: &conn,
             handle,
@@ -860,9 +936,9 @@ mod bluer_adapter {
   impl Debug for BluerAdvertiser {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
       f.debug_struct("BluerAdvertiser")
-          .field("service_uuids", &self.service_uuids)
-          .field("ident", &self.ident)
-          .finish_non_exhaustive()
+        .field("service_uuids", &self.service_uuids)
+        .field("ident", &self.ident)
+        .finish_non_exhaustive()
     }
   }
 
@@ -916,12 +992,17 @@ mod bluer_adapter {
   impl GattResponder for BluerResponder {
     type SystemError = bluer::Error;
 
-    fn respond(&mut self, response: Result<Response<'_>, AttError>) -> Result<(), Self::SystemError> {
+    fn respond(
+      &mut self,
+      response: Result<Response<'_>, AttError>,
+    ) -> Result<(), Self::SystemError> {
       let mapped = response.map(|r| (r.offset, r.value.to_owned()));
-      self.tx.take()
-          .ok_or_else(|| generic_err("Already sent response!"))?
-          .send(mapped)
-          .map_err(|_| generic_err("Server shutdown"))
+      self
+        .tx
+        .take()
+        .ok_or_else(|| generic_err("Already sent response!"))?
+        .send(mapped)
+        .map_err(|_| generic_err("Server shutdown"))
     }
   }
 
@@ -941,8 +1022,7 @@ mod bluer_adapter {
 
   impl Debug for BluerWriter {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-      f.debug_struct("BluerWriter")
-          .finish_non_exhaustive()
+      f.debug_struct("BluerWriter").finish_non_exhaustive()
     }
   }
 
@@ -950,13 +1030,24 @@ mod bluer_adapter {
     type SystemError = bluer::Error;
 
     fn write(&mut self, value: &[u8]) -> Result<(), Self::SystemError> {
-      self.tx.send(value.to_owned())
-          .map_err(|_| generic_err("unsubscribed"))
+      self
+        .tx
+        .send(value.to_owned())
+        .map_err(|_| generic_err("unsubscribed"))
     }
   }
 
   pub enum Event {
-    OnStartResult(Result<(ApplicationHandle, BluerAdvertiser, Vec<(UUID, AttributeHandle)>), bluer::Error>),
+    OnStartResult(
+      Result<
+        (
+          ApplicationHandle,
+          BluerAdvertiser,
+          Vec<(UUID, AttributeHandle)>,
+        ),
+        bluer::Error,
+      >,
+    ),
     OnHandleDrop,
     RequestAdvStart(bluer::adv::Advertisement),
     RequestAdvStop,

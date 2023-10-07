@@ -1,8 +1,8 @@
-use core::fmt::Debug;
 use crate::descriptors::gatt_service::GattService;
 use crate::gap_advertiser::GapAdvertiser;
 use crate::gatt_connection::GattConnection;
 use crate::gatt_server_cb::GattServerCallback;
+use core::fmt::Debug;
 
 /// Trait defining the capabilities of a BLE peripheral device, typically found on embedded
 /// devices.  For more information, see:
@@ -38,8 +38,8 @@ pub trait Peripheral {
   /// The entire GATT server application is expected to be driven through the event callback.
   /// Dropping the resulting handle will shutdown the server.
   fn configure_gatt_server(
-      self,
-      services: &[GattService],
-      callback: impl GattServerCallback<Self> + 'static,
+    self,
+    services: &[GattService],
+    callback: impl GattServerCallback<Self> + 'static,
   ) -> Result<Self::Handle, Self::SystemError>;
 }

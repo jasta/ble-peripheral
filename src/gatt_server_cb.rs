@@ -1,11 +1,11 @@
-use alloc::string::String;
-use alloc::vec::Vec;
-use core::fmt::Debug;
 use crate::bluetooth_error::BluetoothError;
 use crate::descriptors::{AttributeHandle, UUID};
 use crate::gatt_connection::GattConnection;
 use crate::mtu::Mtu;
 use crate::peripheral::Peripheral;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::fmt::Debug;
 
 pub trait GattServerCallback<P: Peripheral + ?Sized> {
   fn on_event(&mut self, event: GattServerEvent<'_, P>);
@@ -13,8 +13,8 @@ pub trait GattServerCallback<P: Peripheral + ?Sized> {
 
 impl<P, F> GattServerCallback<P> for F
 where
-    F: FnMut(GattServerEvent<P>),
-    P: Peripheral,
+  F: FnMut(GattServerEvent<P>),
+  P: Peripheral,
 {
   fn on_event(&mut self, event: GattServerEvent<'_, P>) {
     (self)(event)
@@ -41,9 +41,7 @@ pub enum GattServerEvent<'a, P: Peripheral + ?Sized> {
   /// Server has either spuriously shutdown or configure failed to start the server asynchronously.
   /// This is usually related to programmer error misconfiguration of the bluetooth implementation
   /// in some way.  All future callback events will stop and the advertiser will no longer function.
-  ServerShutdown {
-    error: P::SystemError,
-  },
+  ServerShutdown { error: P::SystemError },
 
   /// Advertising has started.  New connections will now be accepted.
   AdvertisingStarted {
@@ -55,9 +53,7 @@ pub enum GattServerEvent<'a, P: Peripheral + ?Sized> {
   /// Advertising has stopped by developer request or an some external event.  New connections
   /// will not be accepted until advertising is started again and the connectable flag is set.
   /// Advertising can be restarted again using heuristics based on the stop reason.
-  AdvertisingStopped {
-    reason: AdvStopReason,
-  },
+  AdvertisingStopped { reason: AdvStopReason },
 
   /// An attempt to start advertising has failed.  It may be retryable based on the supplied
   /// reason and implementation behaviour.
@@ -67,9 +63,7 @@ pub enum GattServerEvent<'a, P: Peripheral + ?Sized> {
 
   /// Peer connected.  Note that this disables advertising automatically!  For stacks that support
   /// concurrent connections, it must be re-enabled by interacting with [crate::GapAdvertiser]!
-  Connected {
-    connection: &'a P::Connection,
-  },
+  Connected { connection: &'a P::Connection },
 
   /// Peer disconnected.  Note that this re-enables advertising automatically!  If this isn't
   /// desired, calls must be made to [crate::GapAdvertiser]!
@@ -163,7 +157,7 @@ pub enum GattServerEvent<'a, P: Peripheral + ?Sized> {
   Unsubscribe {
     connection: &'a P::Connection,
     handle: AttributeHandle,
-  }
+  },
 }
 
 #[derive(Debug, Clone)]

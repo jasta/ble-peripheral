@@ -1,7 +1,7 @@
-use enumset::{EnumSet};
-use alloc::vec::Vec;
 use crate::descriptors::gatt_descriptor::GattDescriptor;
 use crate::descriptors::uuid::UUID;
+use alloc::vec::Vec;
+use enumset::EnumSet;
 
 #[derive(Debug, PartialEq)]
 pub struct GattCharacteristic {

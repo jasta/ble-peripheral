@@ -1,5 +1,5 @@
-use core::fmt::Debug;
 use crate::att_error::AttError;
+use core::fmt::Debug;
 
 use crate::bluetooth_address::BluetoothAddress;
 
