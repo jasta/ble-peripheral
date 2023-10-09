@@ -14,4 +14,11 @@ impl UUID {
       UUID::Long(u) => u,
     }
   }
+
+  pub(crate) fn push_into<const N: usize>(&self, out: &mut heapless::Vec<u8, N>) -> Result<(), ()> {
+    match self {
+      UUID::Short(v) => out.extend_from_slice(&v.to_le_bytes()).map_err(|_| ()),
+      UUID::Long(v) => out.extend_from_slice(&v.to_le_bytes()).map_err(|_| ()),
+    }
+  }
 }
