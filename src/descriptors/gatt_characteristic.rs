@@ -1,23 +1,22 @@
 use crate::descriptors::gatt_descriptor::GattDescriptor;
 use crate::descriptors::uuid::UUID;
-use alloc::vec::Vec;
 use enumset::EnumSet;
 
 #[derive(Debug, PartialEq)]
-pub struct GattCharacteristic {
+pub struct GattCharacteristic<'a> {
   pub uuid: UUID,
   pub properties: EnumSet<GattCharacteristicProperty>,
   pub permissions: EnumSet<GattCharacteristicPermission>,
-  pub descriptors: Vec<GattDescriptor>,
+  pub descriptors: &'a [GattDescriptor],
 }
 
-impl Default for GattCharacteristic {
+impl<'a> Default for GattCharacteristic<'a> {
   fn default() -> Self {
     Self {
       uuid: UUID::Long(0),
       properties: EnumSet::new(),
       permissions: EnumSet::new(),
-      descriptors: Vec::new(),
+      descriptors: &[],
     }
   }
 }

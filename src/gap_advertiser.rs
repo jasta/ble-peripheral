@@ -1,5 +1,5 @@
-use alloc::collections::BTreeMap;
-use alloc::vec::Vec;
+#[cfg(feature = "alloc")]
+use alloc::{collections::BTreeMap, vec::Vec};
 use core::fmt::Debug;
 
 pub trait GapAdvertiser {
@@ -22,6 +22,8 @@ pub trait GapAdvertiser {
 pub struct Advertisement {
   pub is_connectable: bool,
   pub is_discoverable: bool,
+
+  #[cfg(feature = "alloc")]
   pub manufacturer_data: BTreeMap<u16, Vec<u8>>,
   // TODO: THE REST AND WITH A BETTER API!
 }

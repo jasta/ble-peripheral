@@ -3,8 +3,6 @@ use crate::descriptors::{AttributeHandle, UUID};
 use crate::gatt_connection::GattConnection;
 use crate::mtu::Mtu;
 use crate::peripheral::Peripheral;
-use alloc::string::String;
-use alloc::vec::Vec;
 use core::fmt::Debug;
 
 pub trait GattServerCallback<P: Peripheral + ?Sized> {
@@ -35,7 +33,7 @@ pub enum GattServerEvent<'a, P: Peripheral + ?Sized> {
     /// Mapping of UUIDs to attribute handles which will be used for subsequent events.  Note
     /// that some UUIDs in the provided services specification may be omitted if it can be
     /// determined that there will be no callback events using them.
-    handle_mapping: Vec<(UUID, AttributeHandle)>,
+    handle_mapping: &'a [(UUID, AttributeHandle)],
   },
 
   /// Server has either spuriously shutdown or configure failed to start the server asynchronously.
@@ -58,7 +56,7 @@ pub enum GattServerEvent<'a, P: Peripheral + ?Sized> {
   /// An attempt to start advertising has failed.  It may be retryable based on the supplied
   /// reason and implementation behaviour.
   AdvertisingStartFail {
-    reason: AdvStartFailedReason<P::SystemError>,
+    reason: &'a AdvStartFailedReason<'a, P::SystemError>,
   },
 
   /// Peer connected.  Note that this disables advertising automatically!  For stacks that support
@@ -172,11 +170,11 @@ pub enum AdvStopReason {
 }
 
 #[derive(Debug, Clone)]
-pub enum AdvStartFailedReason<E: Debug> {
+pub enum AdvStartFailedReason<'a, E: Debug> {
   /// Advertisement contained a feature not supported by the current implementation.  Check
   /// the implementation documentation and/or consult the contained error message to learn more.  This
   /// should be considered programmer error.
-  UnsupportedFeature(String),
+  UnsupportedFeature(&'a str),
 
   /// Advertisement specified that connections were allowed but the implementation cannot support
   /// more at this time.  Try again to advertise that we are not connectable or wait for
