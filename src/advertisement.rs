@@ -1,5 +1,6 @@
 use core::fmt::Debug;
 use core::mem::size_of_val;
+use core::ops::Deref;
 use core::time::Duration;
 
 use crate::descriptors::UUID;
@@ -244,6 +245,15 @@ pub enum DiscoverMode {
 /// Represents the raw payload for an advertisement.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RawAdvertisement<const N: usize>(pub heapless::Vec<u8, N>);
+
+impl<const N: usize> Deref for RawAdvertisement<N> {
+  type Target = [u8];
+
+  fn deref(&self) -> &Self::Target {
+    &self.0
+  }
+}
+
 pub type AdvertisementPayload = RawAdvertisement<31>;
 pub type ScanResponsePayload = RawAdvertisement<31>;
 
