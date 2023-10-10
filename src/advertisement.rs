@@ -140,6 +140,17 @@ impl<const N: usize> RawAdvertisementBuilder<N> {
     Ok(self)
   }
 
+  /// Push the short local name.  It is presumed that this name is either the same or shorter than the
+  /// name assigned to the peripheral itself, and UI treatment from external parties will likely
+  /// reflect this and update the name after connection is established and the "full" name is
+  /// read from the built-in characteristic.  The full name can also be manually pushed using
+  /// [AdType::LongLocalName].
+  pub fn push_local_name(mut self, name: &str) -> Result<Self, PushError> {
+    self = self.push_start_record(AdType::ShortLocalName as _, name.len())?;
+    self.raw.extend_from_slice(name.as_bytes()).unwrap();
+    Ok(self)
+  }
+
   pub fn push_raw_ad_type(mut self, ad_type: u8, data: &[u8]) -> Result<Self, PushError> {
     self = self.push_start_record(ad_type, data.len())?;
     self.raw.extend_from_slice(data).unwrap();
