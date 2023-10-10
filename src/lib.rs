@@ -1,8 +1,5 @@
 #![no_std]
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
 pub mod advertisement;
 pub mod att_error;
 pub mod bluetooth_address;

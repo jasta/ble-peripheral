@@ -260,6 +260,7 @@ pub type ScanResponsePayload = RawAdvertisement<31>;
 #[cfg(test)]
 mod tests {
   extern crate std;
+  extern crate alloc;
 
   use alloc::vec;
   use alloc::vec::Vec;

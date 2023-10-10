@@ -7,9 +7,5 @@ edition = "2021"
 enumset = "1.1.2"
 heapless = "0.7.16"
 
-[features]
-default = ["alloc"]
-alloc = []
-
 [dev-dependencies]
 byteorder = "1.5.0"
