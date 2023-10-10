@@ -41,7 +41,8 @@ pub enum GattServerEvent<'a, P: Peripheral + ?Sized> {
   /// in some way.  All future callback events will stop and the advertiser will no longer function.
   ServerShutdown { error: P::SystemError },
 
-  /// Advertising has started.  New connections will now be accepted.
+  /// Advertising has started.  New connections will now be accepted (assuming the advertisement has
+  /// not been constructed to explicitly disable them).
   AdvertisingStarted {
     /// A hint if available of the total number of connections remaining before our capacity
     /// is reached.
