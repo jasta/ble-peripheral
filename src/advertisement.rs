@@ -245,6 +245,7 @@ pub struct RawAdvertisement<const N: usize>(pub heapless::Vec<u8, N>);
 pub type AdvertisementPayload = RawAdvertisement<31>;
 pub type ScanResponsePayload = RawAdvertisement<31>;
 
+#[cfg(test)]
 mod tests {
   extern crate std;
 
