@@ -6,9 +6,9 @@ use crate::descriptors::UUID;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdvertisementRequest {
-  params: AdvertisementParams,
-  payload: AdvertisementPayload,
-  scan_response_payload: Option<ScanResponsePayload>,
+  pub params: AdvertisementParams,
+  pub payload: AdvertisementPayload,
+  pub scan_response_payload: Option<ScanResponsePayload>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -52,6 +52,8 @@ impl Default for ConnectMode {
     Self::Directed
   }
 }
+
+pub type AdvertisementPayloadBuilder = RawAdvertisementBuilder<31>;
 
 /// Helper to facilitate creating correctly structured advertisement PDUs.
 #[derive(Debug, Default, Clone)]
@@ -260,14 +262,14 @@ mod tests {
 
   #[test]
   pub fn test_flags_default_encoding() {
-    let adv = RawAdvertisementBuilder::<31>::new().build().unwrap();
+    let adv = AdvertisementPayloadBuilder::new().build().unwrap();
 
     assert_eq!(adv.0, [0x02, 0x01, 0x06]);
   }
 
   #[test]
   pub fn test_flags_non_default_encoding() {
-    let adv = RawAdvertisementBuilder::<31>::new()
+    let adv = AdvertisementPayloadBuilder::new()
       .set_discover_mode(DiscoverMode::Limited)
       .set_classic_not_supported(true)
       .build()
@@ -283,7 +285,7 @@ mod tests {
     let long_uuid = 0x0123456789abcdef;
     let long_data = [0x2];
 
-    let adv = RawAdvertisementBuilder::<31>::new()
+    let adv = AdvertisementPayloadBuilder::new()
       .push_service_data(&UUID::Short(short_uuid), &short_data)
       .unwrap()
       .push_service_data(&UUID::Long(long_uuid), &long_data)
@@ -313,7 +315,7 @@ mod tests {
     let mfg_id = 0x1234;
     let mfg_data = "manufacturer".as_bytes();
 
-    let adv = RawAdvertisementBuilder::<31>::new()
+    let adv = AdvertisementPayloadBuilder::new()
       .push_manufacturer_data(mfg_id, mfg_data)
       .unwrap()
       .build()
