@@ -1,4 +1,4 @@
-use crate::advertisement::{AdvertisementRequest};
+use crate::advertisement::AdvertisementRequest;
 
 pub trait GapAdvertiser {
   /// Request that BLE advertising begins, which is necessary to allow incoming connections (and using

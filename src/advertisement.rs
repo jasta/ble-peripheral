@@ -84,9 +84,16 @@ impl<const N: usize> RawAdvertisementBuilder<N> {
     self
   }
 
-  pub fn push_manufacturer_data(mut self, manufacturer_id: u16, data: &[u8]) -> Result<Self, PushError> {
+  pub fn push_manufacturer_data(
+    mut self,
+    manufacturer_id: u16,
+    data: &[u8],
+  ) -> Result<Self, PushError> {
     self = self.push_start_record(AdType::ManufacturerData as _, 2 + data.len())?;
-    self.raw.extend_from_slice(&manufacturer_id.to_le_bytes()).unwrap();
+    self
+      .raw
+      .extend_from_slice(&manufacturer_id.to_le_bytes())
+      .unwrap();
     self.raw.extend_from_slice(data).unwrap();
     Ok(self)
   }
@@ -148,7 +155,10 @@ impl<const N: usize> RawAdvertisementBuilder<N> {
       return Err(PushError::CapacityExceeded);
     }
 
-    self.raw.push(remaining_size.checked_add(1).unwrap().try_into().unwrap()).unwrap();
+    self
+      .raw
+      .push(remaining_size.checked_add(1).unwrap().try_into().unwrap())
+      .unwrap();
     self.raw.push(ad_type).unwrap();
     Ok(self)
   }
@@ -249,9 +259,7 @@ mod tests {
 
   #[test]
   pub fn test_flags_default_encoding() {
-    let adv = RawAdvertisementBuilder::<31>::new()
-        .build()
-        .unwrap();
+    let adv = RawAdvertisementBuilder::<31>::new().build().unwrap();
 
     assert_eq!(adv.0, [0x02, 0x01, 0x06]);
   }
@@ -259,10 +267,10 @@ mod tests {
   #[test]
   pub fn test_flags_non_default_encoding() {
     let adv = RawAdvertisementBuilder::<31>::new()
-        .set_discover_mode(DiscoverMode::Limited)
-        .set_classic_not_supported(true)
-        .build()
-        .unwrap();
+      .set_discover_mode(DiscoverMode::Limited)
+      .set_classic_not_supported(true)
+      .build()
+      .unwrap();
 
     assert_eq!(adv.0, [0x02, 0x01, 0b0000_0101]);
   }
@@ -275,26 +283,28 @@ mod tests {
     let long_data = [0x2];
 
     let adv = RawAdvertisementBuilder::<31>::new()
-        .push_service_data(&UUID::Short(short_uuid), &short_data).unwrap()
-        .push_service_data(&UUID::Long(long_uuid), &long_data).unwrap()
-        .build()
-        .unwrap();
+      .push_service_data(&UUID::Short(short_uuid), &short_data)
+      .unwrap()
+      .push_service_data(&UUID::Long(long_uuid), &long_data)
+      .unwrap()
+      .build()
+      .unwrap();
 
     let mut iter = AdRecordIter::new(&adv.0);
     let short_record_data = concat(&short_uuid.to_le_bytes(), &short_data);
-    assert_eq!(iter.next(), Some(AdRecord::new(AdType::ServiceData16, &short_record_data)));
+    assert_eq!(
+      iter.next(),
+      Some(AdRecord::new(AdType::ServiceData16, &short_record_data))
+    );
     let long_record_data = concat(&long_uuid.to_le_bytes(), &long_data);
-    assert_eq!(iter.next(), Some(AdRecord::new(AdType::ServiceData128, &long_record_data)));
+    assert_eq!(
+      iter.next(),
+      Some(AdRecord::new(AdType::ServiceData128, &long_record_data))
+    );
   }
 
   fn concat<T: Clone>(a: &[T], b: &[T]) -> Vec<T> {
-    [
-      a.to_vec(),
-      b.to_vec()
-    ]
-        .into_iter()
-        .flatten()
-        .collect()
+    [a.to_vec(), b.to_vec()].into_iter().flatten().collect()
   }
 
   #[test]
@@ -303,13 +313,17 @@ mod tests {
     let mfg_data = "manufacturer".as_bytes();
 
     let adv = RawAdvertisementBuilder::<31>::new()
-        .push_manufacturer_data(mfg_id, mfg_data).unwrap()
-        .build()
-        .unwrap();
+      .push_manufacturer_data(mfg_id, mfg_data)
+      .unwrap()
+      .build()
+      .unwrap();
 
     let mut iter = AdRecordIter::new(&adv.0);
     let record_data = concat(&mfg_id.to_le_bytes(), mfg_data);
-    assert_eq!(iter.next(), Some(AdRecord::new(AdType::ManufacturerData, &record_data)));
+    assert_eq!(
+      iter.next(),
+      Some(AdRecord::new(AdType::ManufacturerData, &record_data))
+    );
   }
 
   struct AdRecordIter<'a> {
@@ -336,10 +350,7 @@ mod tests {
       let mut data = vec![0u8; (length - 1).into()];
       self.cursor.read_exact(&mut data).ok()?;
 
-      Some(AdRecord {
-        ad_type,
-        data,
-      })
+      Some(AdRecord { ad_type, data })
     }
   }
 
@@ -353,7 +364,7 @@ mod tests {
     pub fn new(ad_type: AdType, data: &[u8]) -> Self {
       Self {
         ad_type: ad_type as _,
-        data: data.to_vec()
+        data: data.to_vec(),
       }
     }
   }
